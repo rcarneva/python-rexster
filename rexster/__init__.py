@@ -4,10 +4,8 @@
 import requests
 import simplejson
 
-
 class RexsterException(BaseException):
     pass
-
 
 class RexsterServer(object):
     """An class that implements a way to connect to
@@ -15,10 +13,7 @@ class RexsterServer(object):
     def __init__(self, host):
         self.host = host
         r = requests.get(host)
-        if r.error:
-            raise RexsterException("Could not connect to a Rexster server")
-        else:
-            self.data = simplejson.loads(r.content)
+        self.data = simplejson.loads(r.content)
 
     def name(self):
         """Return server name"""
@@ -71,9 +66,6 @@ class Element(object):
         @params key: The property key to set
         @params value: The value to set"""
         r = requests.post(self.url, data={key: value})
-        if r.error:
-            error_msg = simplejson.loads(r.content)['message']
-            raise RexsterException(error_msg)
         self.properties[key] = value
 
     def getProperty(self, key):
@@ -83,10 +75,7 @@ class Element(object):
         @returns The value of the property with the given key"""
         r = requests.get(self.url)
         properties = simplejson.loads(r.content)
-        if r.error:
-            raise RexsterException(properties['message'])
-        else:
-            return properties['results'].get(key)
+        return properties['results'].get(key)
 
     def getPropertyKeys(self):
         """Returns a set with the property keys of the element
@@ -94,18 +83,12 @@ class Element(object):
         @returns Set of property keys"""
         r = requests.get(self.url)
         properties = simplejson.loads(r.content)
-        if r.error:
-            raise RexsterException(properties['message'])
-        else:
-            return properties['results'].keys()
+        return properties['results'].keys()
 
     def removeProperty(self, key):
         """Removes the value of the property for the given key
         @params key: The key which value is being removed"""
         r = requests.delete(self.url, params=key)
-        if r.error:
-            error_msg = simplejson.loads(r.content)['message']
-            raise RexsterException(error_msg)
         self.properties.pop(key)
 
     def __eq__(self, other):
@@ -176,7 +159,7 @@ class Vertex(Element):
         r = requests.get(url)
         return self._generator(simplejson.loads(r.content)['results'])
 
-    def __str__(self):
+    def __repr__(self):
         return "Vertex %s: %s" % (self._id, self.properties)
 
 
@@ -211,7 +194,7 @@ class Edge(Element):
         @returns The edge label"""
         return self.properties.get('_label')
 
-    def __str__(self):
+    def __repr__(self):
         return "Edge %s: %s" % (self._id, self.properties)
 
 
@@ -236,11 +219,8 @@ class RexsterGraph(object):
         else:
             url = "%s/vertices" % (self.url)
         r = requests.post(url)
-        if r.error:
-            raise RexsterException("Could not create vertex")
-        else:
-            properties = simplejson.loads(r.content)['results']
-            return Vertex(self, properties['_id'])
+        properties = simplejson.loads(r.content)['results']
+        return Vertex(self, properties['_id'])
 
     def getVertex(self, _id):
         """Retrieves an existing vertex from the graph
@@ -265,8 +245,6 @@ class RexsterGraph(object):
         _id = vertex.getId()
         url = "%s/vertices/%s" % (self.url, _id)
         r = requests.delete(url)
-        if r.error:
-            raise RexsterException("Could not delete vertex")
 
     def addEdge(self, outV, inV, label):
         """Creates a new edge
@@ -283,8 +261,6 @@ class RexsterGraph(object):
                     _inV=inV.getId(),
                     _label=label)
         r = requests.post(url, data=data)
-        if r.error:
-            raise RexsterException("Could not create the edge")
         properties = simplejson.loads(r.content)['results']
         return Edge(self, properties['_id'])
 
@@ -293,21 +269,15 @@ class RexsterGraph(object):
         url = "%s/edges" % self.url
         r = requests.get(url)
         content = simplejson.loads(r.content)
-        if r.error:
-            raise RexsterException(content['message'])
-        else:
-            for edge in content['results']:
-                yield Edge(self, edge.get('_id'))
+        for edge in content['results']:
+            yield Edge(self, edge.get('_id'))
 
     def getEdge(self, _id):
         """Retrieves an existing edge from the graph
         @params _id: Edge unique identifier
 
         @returns The requested Edge"""
-        try:
-            return Edge(self, _id)
-        except RexsterException:
-            return None
+        return Edge(self, _id)
 
     def removeEdge(self, edge):
         """Removes the given edge
@@ -315,19 +285,13 @@ class RexsterGraph(object):
         _id = edge.getId()
         url = "%s/edges/%s" % (self.url, _id)
         r = requests.delete(url)
-        if r.error:
-            raise RexsterException("Could not delete edge")
 
     def gremlin_execute(self, gremlin_script):
         url = '%s/tp/gremlin' % (self.url)
         r = requests.post(url, data={'script':gremlin_script})
         if r.content:
             content = simplejson.loads(r.content)
-
-        if r.error:
-            raise RexsterException(content['message'])
-        elif content:
-            return content
+        return content
 
     # attention: gremlin must be enabled        
     def shortest_path(self, start, end):
@@ -378,8 +342,6 @@ class Index(object):
         r = requests.get(url, params={'key': key,
                                     'value': value})
         content = simplejson.loads(r.content)
-        if r.error:
-            raise RexsterException(content['message'])
         return content['totalSize']
 
     def getIndexName(self):
@@ -417,9 +379,6 @@ class Index(object):
                 'class': klass,
                 'id': element.getId()}
         r = requests.post(self.url, data)
-        if r.error:
-            error_msg = simplejson.loads(r.content)['message']
-            raise RexsterException(error_msg)
 
     def get(self, key, value):
         """Gets an element from an index under a given
@@ -430,8 +389,6 @@ class Index(object):
         r = requests.get(self.url, params={'key': key,
                                         'value': value})
         content = simplejson.loads(r.content)
-        if r.error:
-            raise RexsterException(content['message'])
         for item in content['results']:
             if self.indexClass in ('vertex', 'neo4jvertex'):
                 yield Vertex(self.graph, item.get('_id'))
@@ -453,10 +410,8 @@ class Index(object):
         _id = element.getId()
         data = {'class': klass, 'key': key, 'value': value, 'id': _id}
         r = requests.delete(self.url, params=data)
-        if r.error:
-            raise RexsterException("Could not delete element")
 
-    def __str__(self):
+    def __repr__(self):
         return "Index %s (%s, %s)" % (self.indexName,
                                     self.indexClass,
                                     self.indexType)
@@ -468,8 +423,6 @@ class AutomaticIndex(Index):
         url = "%s/keys" % self.url
         r = requests.get(url)
         content = simplejson.loads(r.content)
-        if r.error:
-            raise RexsterException(content['message'])
         return content['results']
 
 
@@ -488,8 +441,6 @@ class RexsterIndexableGraph(RexsterGraph):
             data['keys'] = autoKeys
         r = requests.post(url, data=data)
         content = simplejson.loads(r.content)
-        if r.error:
-            raise RexsterException(content['message'])
         return content['results']
 
     def createManualIndex(self, indexName, indexClass):
@@ -520,8 +471,6 @@ class RexsterIndexableGraph(RexsterGraph):
         url = "%s/indices" % self.url
         r = requests.get(url)
         content = simplejson.loads(r.content)
-        if r.error:
-            raise RexsterException(content['message'])
         for index in content['results']:
             yield Index(self, index['name'], index['class'], index['type'])
 
@@ -535,8 +484,6 @@ class RexsterIndexableGraph(RexsterGraph):
         r = requests.get(url)
         #rexster 0.4 content = simplejson.loads(r.content)
         content = simplejson.loads(r.content)['results'] #rexster 0.5
-        if r.error:
-            return None
         if content['type'] == 'automatic':
             return AutomaticIndex(self, content['name'],
                                 content['class'], content['type'])
@@ -549,6 +496,3 @@ class RexsterIndexableGraph(RexsterGraph):
         @params indexName: The index name"""
         url = "%s/indices/%s" % (self.url, indexName)
         r = requests.delete(url)
-        if r.error:
-            content = simplejson.loads(r.content)
-            raise RexsterException(content['message'])
